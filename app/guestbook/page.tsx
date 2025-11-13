@@ -5,6 +5,7 @@ import { useState, useEffect, FormEvent } from 'react';
 type Comment = {
     id: number;
     text: string;
+    createdAt: string; // Now we have timestamps!
 };
 
 export default function GuestbookPage() {

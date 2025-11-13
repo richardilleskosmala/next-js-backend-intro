@@ -269,11 +269,9 @@ You should see the initial two comments. Try typing a new comment in the form an
 
 So far, we've been using an in-memory array that resets every time the server restarts. Let's add a real database to make our data persistent!
 
-### Step 1: Install Prisma and SQLite
-
 Prisma is a modern database toolkit that makes working with databases easy and type-safe. Instead of writing complex SQL queries, you write JavaScript that looks like your data structure.
 
-**Example - Traditional approach vs Prisma:**
+**Traditional SQL vs Prisma:**
 
 ```sql
 -- Traditional SQL (complex and error-prone)
@@ -306,6 +304,10 @@ SQLite is a lightweight database that doesn't require any setup - it's just a fi
 - **Perfect for development** - easy to reset, backup, and share
 - **Real database features** - supports all the database operations you'll need
 
+### Step 1: Install Prisma and SQLite
+
+
+
 ```bash
 npm install prisma @prisma/client
 npm install -D prisma
@@ -319,31 +321,21 @@ npx prisma init --datasource-provider sqlite
 
 This creates a `prisma` folder with a `schema.prisma` file and a `.env` file.
 
-**Important**: If you get a `prisma.config.ts` file, you need to add the dotenv import to load environment variables. Update the file to include:
-
-```typescript
-import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
-
-export default defineConfig({
-  schema: "prisma/schema.prisma",
-  migrations: {
-    path: "prisma/migrations",
-  },
-  engine: "classic",
-  datasource: {
-    url: env("DATABASE_URL"),
-  },
-});
-```
-
-### Step 2.1: Install dotenv dependency
+### Step 3: Install dotenv dependency
 
 ```bash
 npm install dotenv
 ```
 
-### Step 2.2: Create .env file with DATABASE_URL
+### Step 4: Update Prisma Config file
+
+You'll get a `prisma.config.ts` file, you need to add the dotenv import to load environment variables. Update the file to include the import at the top:
+
+```typescript
+import "dotenv/config";
+```
+
+### Step 5: Create .env file with DATABASE_URL
 
 Create a new file called `.env` in your project root (same folder as `package.json`) and add this content:
 
@@ -351,7 +343,7 @@ Create a new file called `.env` in your project root (same folder as `package.js
 DATABASE_URL="file:./dev.db"
 ```
 
-### Step 2.3: Update Prisma schema
+### Step 6: Update Prisma schema
 
 Update `prisma/schema.prisma` to use the standard Prisma client and add the Comment model:
 
@@ -375,7 +367,7 @@ model Comment {
 }
 ```
 
-### Step 2.4: Create and run initial migration
+### Step 7: Create and run initial migration
 
 ```bash
 npx prisma migrate dev --name init
@@ -387,45 +379,7 @@ This will:
 - Apply the migration to create the Comment table
 - Generate the Prisma Client automatically
 
-### Step 3: Define Your Database Schema
-
-Update `prisma/schema.prisma`:
-
-```prisma
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
-
-model Comment {
-  id        Int      @id @default(autoincrement())
-  text      String
-  createdAt DateTime @default(now())
-}
-```
-
-### Step 4: Create and Run Database Migration
-
-```bash
-npx prisma migrate dev --name init
-```
-
-This creates the database file and the `Comment` table.
-
-### Step 5: Generate Prisma Client
-
-```bash
-npx prisma generate
-```
-
-### Step 6: Update Your API to Use the Database
+### Step 8: Update Your API to Use the Database
 
 Replace the content of `app/api/comments/route.ts`:
 
@@ -443,7 +397,7 @@ export async function GET() {
     });
     return NextResponse.json(comments);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch comments' }, { status: 500 });
+    return NextResponse.json({ error: `Failed to fetch comments: ${error}` }, { status: 500 });
   }
 }
 
@@ -463,147 +417,40 @@ export async function POST(request: Request) {
 
     return NextResponse.json(newComment, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to create comment' }, { status: 500 });
+    return NextResponse.json({ error: `Failed to fetch comments: ${error}`  }, { status: 500 });
   }
 }
 ```
 
-### Step 7: Seed Your Database with Initial Data
+### Step 9: Update Your Frontend Types
 
-Create `prisma/seed.ts`:
-
-```typescript
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-async function main() {
-  // Create some initial comments
-  await prisma.comment.createMany({
-    data: [
-      { text: 'This is the first comment.' },
-      { text: 'What a great series!' },
-    ],
-  });
-}
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
-```
-
-Add this to your `package.json`:
-
-```json
-{
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  }
-}
-```
-
-Install tsx for running TypeScript files:
-
-```bash
-npm install -D tsx
-```
-
-Run the seed:
-
-```bash
-npx prisma db seed
-```
-
-### Step 8: Update Your Frontend Types
-
-Update your guestbook page to handle the new database structure:
+Update your guestbook page to handle the new database structure, starting with the Comment type:
 
 ```tsx
-'use client';
+//BEFORE
+type Comment = {
+  id: number;
+  text: string;
+};
 
-import { useState, useEffect, FormEvent } from 'react';
-
+// AFTER
 type Comment = {
   id: number;
   text: string;
   createdAt: string; // Now we have timestamps!
 };
 
-export default function GuestbookPage() {
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState('');
-
-  // Function to get the latest comments from our API.
-  const fetchComments = async () => {
-    const response = await fetch('/api/comments');
-    const data = await response.json();
-    setComments(data);
-  };
-
-  // Fetch the initial comments when the page loads.
-  useEffect(() => {
-    fetchComments();
-  }, []);
-
-  // This function runs when the user submits the form.
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    await fetch('/api/comments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ text: newComment }),
-    });
-
-    setNewComment('');
-    fetchComments();
-  };
-
-  return (
-    <main style={{ fontFamily: 'sans-serif', padding: '2rem', maxWidth: '600px', margin: 'auto' }}>
-      <h1>Guestbook</h1>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={newComment}
-          onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Write a comment..."
-          style={{ width: '80%', padding: '8px' }}
-        />
-        <button type="submit" style={{ padding: '8px' }}>Post</button>
-      </form>
-      <hr style={{ margin: '1rem 0' }} />
-      <ul>
-        {comments.map((comment) => (
-          <li key={comment.id}>
-            <p>{comment.text}</p>
-            <small style={{ color: '#666' }}>
-              Posted at {new Date(comment.createdAt).toLocaleString()}
-            </small>
-          </li>
-        ))}
-      </ul>
-    </main>
-  );
-}
 ```
 
-### Step 9: Test Your Database Integration
+### Step 10: Test Your Database Integration
 
 1. Restart your development server: `npm run dev`
 2. Go to http://localhost:3000/guestbook
 3. Add a new comment
 4. Restart your server and refresh the page
-5. **Your comments should still be there!** 🎉
+5. Your comments should still be there
 
-### Step 10: Explore Your Database
+### Step 11: Explore Your Database
 
 You can view your database using Prisma Studio:
 
@@ -613,7 +460,7 @@ npx prisma studio
 
 This opens a web interface where you can see all your comments and even edit them directly!
 
-## Troubleshooting Common Issues
+## Troubleshooting
 
 ### Issue: "Missing required environment variable: DATABASE_URL"
 
@@ -660,26 +507,5 @@ npm install @prisma/client
 - ✅ **Database Migrations**: Easy to add new fields or tables
 - ✅ **Database GUI**: Prisma Studio for easy database management
 
-## Key Database Concepts Learned
 
-- **Schema Definition**: How to define your data structure
-- **Migrations**: How to update your database structure
-- **CRUD Operations**: Create, Read, Update, Delete data
-- **Type Safety**: How TypeScript works with databases
-- **Data Persistence**: Why databases matter for real applications
-
-## Summary
-
-You've now built a complete full-stack application with:
-
-- ✅ A Next.js project with TypeScript and modern tooling
-- ✅ API routes for both reading (GET) and writing (POST) data
-- ✅ A React frontend that connects to your backend
-- ✅ Form handling and state management
-- ✅ Real-time data updates
-- ✅ **A real database with persistent data storage**
-- ✅ **Type-safe database operations**
-- ✅ **Database migrations and schema management**
-
-This foundation gives you everything you need to build more complex applications with user authentication, advanced features, and production deployment!
 
